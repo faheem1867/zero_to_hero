@@ -1,0 +1,30 @@
+{
+  "name": "zero-to-hero-salon",
+  "version": "1.0.0",
+  "description": "ZERO TO HERO SALON - Full Stack MERN Luxury Grooming Web Application",
+  "main": "api/index.js",
+  "scripts": {
+    "server": "cd server && npm start",
+    "client": "cd client && npm run dev",
+    "seed": "cd server && npm run seed",
+    "build": "cd client && npm install && npm run build",
+    "vercel-build": "cd client && npm install && npm run build"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.3.4"
+  },
+  "keywords": [
+    "salon",
+    "mern",
+    "booking",
+    "barber",
+    "luxury"
+  ],
+  "author": "ZERO TO HERO SALON",
+  "license": "ISC"
+}
