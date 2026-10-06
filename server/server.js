@@ -23,21 +23,31 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/services', serviceRoutes);
-app.use('/api/barbers', barberRoutes);
-app.use('/api/appointments', appointmentRoutes);
-app.use('/api/admin', adminRoutes);
+// API Routes (supports both /api/* and direct /* for flexible Vercel service rewrites)
+const routes = [
+  ['/auth', authRoutes],
+  ['/services', serviceRoutes],
+  ['/barbers', barberRoutes],
+  ['/appointments', appointmentRoutes],
+  ['/admin', adminRoutes],
+];
+
+routes.forEach(([path, handler]) => {
+  app.use(`/api${path}`, handler);
+  app.use(path, handler);
+});
 
 // Health check
-app.get('/api/health', (req, res) => {
+const healthCheck = (req, res) => {
   res.json({
     status: 'online',
     timestamp: new Date().toISOString(),
     service: 'ZERO TO HERO SALON API',
   });
-});
+};
+
+app.get('/api/health', healthCheck);
+app.get('/health', healthCheck);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
