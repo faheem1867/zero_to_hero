@@ -13,7 +13,19 @@
   },
   "rewrites": [
     {
+      "source": "/api",
+      "destination": {
+        "service": "server"
+      }
+    },
+    {
       "source": "/api/(.*)",
+      "destination": {
+        "service": "server"
+      }
+    },
+    {
+      "source": "/health",
       "destination": {
         "service": "server"
       }

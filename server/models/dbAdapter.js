@@ -7,28 +7,93 @@ const AppointmentModel = require('./Appointment');
 
 const isMongoActive = () => mongoose.connection.readyState === 1;
 
+// Chainable thenable query simulator for Mongoose-compatible operations in memory mode
+function makeQuery(initialList) {
+  let list = Array.isArray(initialList) ? [...initialList] : [];
+
+  const query = {
+    sort(criteria) {
+      if (typeof criteria === 'object' && criteria !== null) {
+        list.sort((a, b) => {
+          for (const [key, order] of Object.entries(criteria)) {
+            const valA = a[key] ?? '';
+            const valB = b[key] ?? '';
+            if (valA < valB) return order === -1 ? 1 : -1;
+            if (valA > valB) return order === -1 ? -1 : 1;
+          }
+          return 0;
+        });
+      }
+      return query;
+    },
+    populate() {
+      return query;
+    },
+    limit(n) {
+      if (typeof n === 'number') list = list.slice(0, n);
+      return query;
+    },
+    skip(n) {
+      if (typeof n === 'number') list = list.slice(n);
+      return query;
+    },
+    lean() {
+      return query;
+    },
+    select() {
+      return query;
+    },
+    then(onFulfilled, onRejected) {
+      return Promise.resolve(list).then(onFulfilled, onRejected);
+    },
+    catch(onRejected) {
+      return Promise.resolve(list).catch(onRejected);
+    },
+  };
+
+  return query;
+}
+
+function makeSingleQuery(item) {
+  const query = {
+    populate() { return query; },
+    select() { return query; },
+    lean() { return query; },
+    then(onFulfilled, onRejected) {
+      return Promise.resolve(item).then(onFulfilled, onRejected);
+    },
+    catch(onRejected) {
+      return Promise.resolve(item).catch(onRejected);
+    },
+  };
+  return query;
+}
+
 // ================= USER ADAPTER =================
 const User = {
-  async findOne(query) {
-    if (isMongoActive()) return await UserModel.findOne(query);
+  findOne(query) {
+    if (isMongoActive()) return UserModel.findOne(query);
     if (query.phone) {
-      return memoryStore.users.find((u) => u.phone === query.phone) || null;
+      const u = memoryStore.users.find((u) => u.phone === query.phone) || null;
+      return makeSingleQuery(u);
     }
     if (query.email) {
-      return (
+      const u = (
         memoryStore.users.find(
           (u) =>
             u.email?.toLowerCase() === query.email.toLowerCase() &&
             (!query.role || u.role === query.role)
         ) || null
       );
+      return makeSingleQuery(u);
     }
-    return null;
+    return makeSingleQuery(null);
   },
 
-  async findById(id) {
-    if (isMongoActive()) return await UserModel.findById(id);
-    return memoryStore.users.find((u) => String(u._id) === String(id)) || null;
+  findById(id) {
+    if (isMongoActive()) return UserModel.findById(id);
+    const u = memoryStore.users.find((u) => String(u._id) === String(id)) || null;
+    return makeSingleQuery(u);
   },
 
   async create(data) {
@@ -46,10 +111,9 @@ const User = {
 
 // ================= SERVICE ADAPTER =================
 const Service = {
-  async find(query = {}) {
+  find(query = {}) {
     if (isMongoActive()) {
-      const q = ServiceModel.find(query);
-      return await q.sort({ category: 1, name: 1 });
+      return ServiceModel.find(query);
     }
     let list = [...memoryStore.services];
     if (query.isActive !== undefined) {
@@ -59,7 +123,7 @@ const Service = {
       const ids = query._id.$in.map(String);
       list = list.filter((s) => ids.includes(String(s._id)));
     }
-    return list.sort((a, b) => a.name.localeCompare(b.name));
+    return makeQuery(list);
   },
 
   async create(data) {
@@ -101,28 +165,30 @@ const Service = {
 
 // ================= BARBER ADAPTER =================
 const Barber = {
-  async find(query = {}) {
+  find(query = {}) {
     if (isMongoActive()) {
-      return await BarberModel.find(query).sort({ name: 1 });
+      return BarberModel.find(query);
     }
     let list = [...memoryStore.barbers];
     if (query.isActive !== undefined) {
       list = list.filter((b) => b.isActive === query.isActive);
     }
-    return list.sort((a, b) => a.name.localeCompare(b.name));
+    return makeQuery(list);
   },
 
-  async findById(id) {
-    if (isMongoActive()) return await BarberModel.findById(id);
-    return memoryStore.barbers.find((b) => String(b._id) === String(id)) || null;
+  findById(id) {
+    if (isMongoActive()) return BarberModel.findById(id);
+    const b = memoryStore.barbers.find((b) => String(b._id) === String(id)) || null;
+    return makeSingleQuery(b);
   },
 
-  async findOne(query = {}) {
-    if (isMongoActive()) return await BarberModel.findOne(query);
+  findOne(query = {}) {
+    if (isMongoActive()) return BarberModel.findOne(query);
     if (query.isActive !== undefined) {
-      return memoryStore.barbers.find((b) => b.isActive === query.isActive) || null;
+      const b = memoryStore.barbers.find((b) => b.isActive === query.isActive) || null;
+      return makeSingleQuery(b);
     }
-    return memoryStore.barbers[0] || null;
+    return makeSingleQuery(memoryStore.barbers[0] || null);
   },
 
   async create(data) {
@@ -164,9 +230,9 @@ const Barber = {
 
 // ================= APPOINTMENT ADAPTER =================
 const Appointment = {
-  async find(query = {}) {
+  find(query = {}) {
     if (isMongoActive()) {
-      return await AppointmentModel.find(query).sort({ date: -1, createdAt: -1 });
+      return AppointmentModel.find(query);
     }
     let list = [...memoryStore.appointments];
 
@@ -202,20 +268,22 @@ const Appointment = {
       });
     }
 
-    return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return makeQuery(list);
   },
 
-  async findOne(query) {
-    if (isMongoActive()) return await AppointmentModel.findOne(query);
+  findOne(query) {
+    if (isMongoActive()) return AppointmentModel.findOne(query);
     if (query.bookingId) {
-      return memoryStore.appointments.find((a) => a.bookingId.toUpperCase() === query.bookingId.toUpperCase()) || null;
+      const a = memoryStore.appointments.find((a) => a.bookingId.toUpperCase() === query.bookingId.toUpperCase()) || null;
+      return makeSingleQuery(a);
     }
-    return null;
+    return makeSingleQuery(null);
   },
 
-  async findById(id) {
-    if (isMongoActive()) return await AppointmentModel.findById(id);
-    return memoryStore.appointments.find((a) => String(a._id) === String(id)) || null;
+  findById(id) {
+    if (isMongoActive()) return AppointmentModel.findById(id);
+    const a = memoryStore.appointments.find((a) => String(a._id) === String(id)) || null;
+    return makeSingleQuery(a);
   },
 
   async create(data) {
